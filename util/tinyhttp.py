@@ -9,11 +9,14 @@ from urllib.parse import urlencode
 from tinydecred.util import tinyjson
 from tinydecred.util.helpers import formatTraceback
 
+
 def get(uri, **kwargs):
     return request(uri, **kwargs)
 
+
 def post(uri, data, **kwargs):
     return request(uri, data, **kwargs)
+
 
 def request(uri, postData=None, headers=None, urlEncode=False, supressErr=False):
     try:
@@ -36,6 +39,13 @@ def request(uri, postData=None, headers=None, urlEncode=False, supressErr=False)
         except tinyjson.JSONDecodeError:
             return raw
         except Exception as e:
-            raise Exception("JSONError", "Failed to decode server response from path %s: %s : %s" % (uri, raw, formatTraceback(e)))
+            raise Exception(
+                "JSONError",
+                "Failed to decode server response from path %s: %s : %s"
+                % (uri, raw, formatTraceback(e)),
+            )
     except Exception as e:
-        raise Exception("RequestError", "Error encountered in requesting path %s: %s" % (uri, formatTraceback(e)))
+        raise Exception(
+            "RequestError",
+            "Error encountered in requesting path %s: %s" % (uri, formatTraceback(e)),
+        )

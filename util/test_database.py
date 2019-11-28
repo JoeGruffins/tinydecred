@@ -8,85 +8,88 @@ import os
 from tinydecred.util import database
 from tinydecred.util import helpers
 
+
 class TestDB(unittest.TestCase):
-	@classmethod
-	def setUpClass(cls):
-		helpers.prepareLogger("TestDB")
-	def test_database(self):
-		from tempfile import TemporaryDirectory
-		import time
-		with TemporaryDirectory() as tempDir:
-			# Create some test data.
-			testPairs = [
-				["abc", "def"],
-				["ghi", "jkl"],
-				["mno", "pqr"],
-				["stu", "vwx"],
-			]
+    @classmethod
+    def setUpClass(cls):
+        helpers.prepareLogger("TestDB")
 
-			# Encode it to bytes.
-			for kv in testPairs:
-				kv[0] = kv[0].encode()
-				kv[1] = kv[1].encode()
+    def test_database(self):
+        from tempfile import TemporaryDirectory
+        import time
 
-			# Open a key value db in the temp directory.
-			manager = database.KeyValueDatabase(os.path.join(tempDir, 'tmp.sqlite'))
-			with manager.getBucket("test") as db:
+        with TemporaryDirectory() as tempDir:
+            # Create some test data.
+            testPairs = [
+                ["abc", "def"],
+                ["ghi", "jkl"],
+                ["mno", "pqr"],
+                ["stu", "vwx"],
+            ]
 
-				# Ensure the db has zero length.
-				self.assertTrue(len(db) == 0)
+            # Encode it to bytes.
+            for kv in testPairs:
+                kv[0] = kv[0].encode()
+                kv[1] = kv[1].encode()
 
-				# Insert the test pairs.
-				for k, v in testPairs:
-					db[k] = v
+            # Open a key value db in the temp directory.
+            manager = database.KeyValueDatabase(os.path.join(tempDir, "tmp.sqlite"))
+            with manager.getBucket("test") as db:
 
-				# Check length again
-				self.assertTrue(len(db) == len(testPairs))
+                # Ensure the db has zero length.
+                self.assertTrue(len(db) == 0)
 
-				# Delete an item
-				outPair = db[testPairs[0][0]]
-				del db[testPairs[0][0]]
-				# Check the length again
-				self.assertTrue(len(db) == len(testPairs) - 1)
+                # Insert the test pairs.
+                for k, v in testPairs:
+                    db[k] = v
 
-				# Make sure the right row was deleted.
-				with self.assertRaises(database.NoValue):
-					v = db[outPair[0]]
+                # Check length again
+                self.assertTrue(len(db) == len(testPairs))
 
-				# Remmove the corresponding test pair from the dict.
-				testPairs.pop(0)
+                # Delete an item
+                outPair = db[testPairs[0][0]]
+                del db[testPairs[0][0]]
+                # Check the length again
+                self.assertTrue(len(db) == len(testPairs) - 1)
 
-				# Make sure the rest are retrievable. 
-				for k, _ in testPairs:
-					v = db[k]
+                # Make sure the right row was deleted.
+                with self.assertRaises(database.NoValue):
+                    v = db[outPair[0]]
 
-				# Delete the rest
-				for k, v in testPairs:
-					del db[k]
+                # Remmove the corresponding test pair from the dict.
+                testPairs.pop(0)
 
-				# Check the length
-				self.assertTrue(len(db) == 0)
+                # Make sure the rest are retrievable.
+                for k, _ in testPairs:
+                    v = db[k]
 
-				# Insert again
-				for k, v in testPairs:
-					db[k] = v
+                # Delete the rest
+                for k, v in testPairs:
+                    del db[k]
 
-				# Make sure nothing has changed. 
-				for k, _ in testPairs:
-					self.assertTrue(k in db)
+                # Check the length
+                self.assertTrue(len(db) == 0)
 
-				# run some benchmarks
-				td = []
-				num = 100
-				for i in range(num):				
-					td.append([str(i).encode(), str(i).encode()])
+                # Insert again
+                for k, v in testPairs:
+                    db[k] = v
 
-				start = time.time()
-				for k, v in td:
-					db[k] = v
-				elapsed = (time.time() - start) * 1000
-				print("{} ms to insert {} values".format(num, elapsed))
-				self.assertRaises(database.NoValue, lambda: db["nonsense"])
-			with manager.getBucket("inttest", datatypes=("INTEGER", "BLOB")) as db:
-				db[5] = b'asdf'
-				self.assertEqual(db[5], b'asdf')
+                # Make sure nothing has changed.
+                for k, _ in testPairs:
+                    self.assertTrue(k in db)
+
+                # run some benchmarks
+                td = []
+                num = 100
+                for i in range(num):
+                    td.append([str(i).encode(), str(i).encode()])
+
+                start = time.time()
+                for k, v in td:
+                    db[k] = v
+                elapsed = (time.time() - start) * 1000
+                print("{} ms to insert {} values".format(num, elapsed))
+                self.assertRaises(database.NoValue, lambda: db["nonsense"])
+            with manager.getBucket("inttest", datatypes=("INTEGER", "BLOB")) as db:
+                db[5] = b"asdf"
+                self.assertEqual(db[5], b"asdf")

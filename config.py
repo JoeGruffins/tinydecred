@@ -24,20 +24,15 @@ CONFIG_PATH = os.path.join(DATA_DIR, CONFIG_NAME)
 # Some decred constants.
 MAINNET = nets.mainnet.Name
 TESTNET = nets.testnet.Name
-SIMNET  = nets.simnet.Name
+SIMNET = nets.simnet.Name
 
 # Network specific configuration settings.
-MainnetConfig = {
-    "dcrdata":  "https://explorer.dcrdata.org/"
-}
+MainnetConfig = {"dcrdata": "https://explorer.dcrdata.org/"}
 
-TestnetConfig = {
-    "dcrdata": "https://testnet.dcrdata.org/"
-}
+TestnetConfig = {"dcrdata": "https://testnet.dcrdata.org/"}
 
-SimnetConfig = {
-    "dcrdata": "http://localhost:7777" # Run dcrdata locally
-}
+SimnetConfig = {"dcrdata": "http://localhost:7777"}  # Run dcrdata locally
+
 
 def tinyNetConfig(netName):
     """
@@ -57,18 +52,20 @@ def tinyNetConfig(netName):
         return SimnetConfig
     raise Exception("unknown network")
 
+
 class TinyConfig:
     """
     TinyConfig is configuration settings. The configuration file is JSON
     formatted.
     """
+
     def __init__(self):
         fileCfg = helpers.fetchSettingsFile(CONFIG_PATH)
         self.file = fileCfg
         parser = argparse.ArgumentParser()
         netGroup = parser.add_mutually_exclusive_group()
-        netGroup.add_argument("--simnet", action='store_true', help="use simnet")
-        netGroup.add_argument("--testnet", action='store_true', help="use testnet")
+        netGroup.add_argument("--simnet", action="store_true", help="use simnet")
+        netGroup.add_argument("--testnet", action="store_true", help="use testnet")
         args = parser.parse_args()
         self.net = None
         if args.simnet:
@@ -81,6 +78,7 @@ class TinyConfig:
             print("**********************************************************")
             self.net = nets.mainnet
         self.normalize()
+
     def set(self, k, v):
         """
         Set the configuration option. The configuration is not saved, so `save`
@@ -91,6 +89,7 @@ class TinyConfig:
             v (JSON-encodable): The value.
         """
         self.file[k] = v
+
     def get(self, *keys):
         """
         Retrieve the setting at the provided key path. Multiple keys can be
@@ -111,6 +110,7 @@ class TinyConfig:
             rVal = d[k]
             d = rVal
         return rVal
+
     def normalize(self):
         """
         Perform attribute checks and initialization.
@@ -122,13 +122,16 @@ class TinyConfig:
         if self.net.Name not in file[netKey]:
             d = file[netKey][self.net.Name] = tinyNetConfig(self.net.Name)
             d["name"] = self.net.Name
+
     def save(self):
         """
         Save the file.
         """
         tinyjson.save(CONFIG_PATH, self.file, indent=4, sort_keys=True)
 
+
 tinyConfig = TinyConfig()
+
 
 def load():
     """
