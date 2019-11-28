@@ -9,10 +9,12 @@ from tinydecred.util import helpers
 from tinydecred.pydecred.wire import wire
 from tinydecred.crypto.bytearray import ByteArray
 
+
 class TestMsgTx(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         helpers.prepareLogger("TestMsgTx")
+
     def test_tx_serialize_size(self):
         """
         TestTxSerializeSize performs tests to ensure the serialize size for various
@@ -31,40 +33,101 @@ class TestMsgTx(unittest.TestCase):
 
         for i, (txIn, size) in enumerate(tests):
             self.assertEqual(txIn.serializeSize(), size)
+
     def test_tx_hash(self):
         """ TestTxHash tests the ability to generate the hash of a transaction accurately. """
         # Hash of first transaction from block 113875.
-        wantHash = reversed(ByteArray("4538fc1618badd058ee88fd020984451024858796be0a1ed111877f887e1bd53"))
+        wantHash = reversed(
+            ByteArray(
+                "4538fc1618badd058ee88fd020984451024858796be0a1ed111877f887e1bd53"
+            )
+        )
 
         msgTx = msgtx.MsgTx.new()
         txIn = msgtx.TxIn(
-            previousOutPoint = msgtx.OutPoint(
-                txHash =  None,
-                idx = 0xffffffff,
-                tree =  msgtx.TxTreeRegular,
+            previousOutPoint=msgtx.OutPoint(
+                txHash=None, idx=0xFFFFFFFF, tree=msgtx.TxTreeRegular,
             ),
-            sequence =        0xffffffff,
-            valueIn =         5000000000,
-            blockHeight =     0x3F3F3F3F,
-            blockIndex =      0x2E2E2E2E,
-            signatureScript = ByteArray([0x04, 0x31, 0xdc, 0x00, 0x1b, 0x01, 0x62]),
+            sequence=0xFFFFFFFF,
+            valueIn=5000000000,
+            blockHeight=0x3F3F3F3F,
+            blockIndex=0x2E2E2E2E,
+            signatureScript=ByteArray([0x04, 0x31, 0xDC, 0x00, 0x1B, 0x01, 0x62]),
         )
         txOut = msgtx.TxOut(
-            value =   5000000000,
-            version = 0xf0f0,
-            pkScript = ByteArray([
-                0x41, # OP_DATA_65
-                0x04, 0xd6, 0x4b, 0xdf, 0xd0, 0x9e, 0xb1, 0xc5,
-                0xfe, 0x29, 0x5a, 0xbd, 0xeb, 0x1d, 0xca, 0x42,
-                0x81, 0xbe, 0x98, 0x8e, 0x2d, 0xa0, 0xb6, 0xc1,
-                0xc6, 0xa5, 0x9d, 0xc2, 0x26, 0xc2, 0x86, 0x24,
-                0xe1, 0x81, 0x75, 0xe8, 0x51, 0xc9, 0x6b, 0x97,
-                0x3d, 0x81, 0xb0, 0x1c, 0xc3, 0x1f, 0x04, 0x78,
-                0x34, 0xbc, 0x06, 0xd6, 0xd6, 0xed, 0xf6, 0x20,
-                0xd1, 0x84, 0x24, 0x1a, 0x6a, 0xed, 0x8b, 0x63,
-                0xa6, # 65-byte signature
-                0xac, # OP_CHECKSIG
-            ]),
+            value=5000000000,
+            version=0xF0F0,
+            pkScript=ByteArray(
+                [
+                    0x41,  # OP_DATA_65
+                    0x04,
+                    0xD6,
+                    0x4B,
+                    0xDF,
+                    0xD0,
+                    0x9E,
+                    0xB1,
+                    0xC5,
+                    0xFE,
+                    0x29,
+                    0x5A,
+                    0xBD,
+                    0xEB,
+                    0x1D,
+                    0xCA,
+                    0x42,
+                    0x81,
+                    0xBE,
+                    0x98,
+                    0x8E,
+                    0x2D,
+                    0xA0,
+                    0xB6,
+                    0xC1,
+                    0xC6,
+                    0xA5,
+                    0x9D,
+                    0xC2,
+                    0x26,
+                    0xC2,
+                    0x86,
+                    0x24,
+                    0xE1,
+                    0x81,
+                    0x75,
+                    0xE8,
+                    0x51,
+                    0xC9,
+                    0x6B,
+                    0x97,
+                    0x3D,
+                    0x81,
+                    0xB0,
+                    0x1C,
+                    0xC3,
+                    0x1F,
+                    0x04,
+                    0x78,
+                    0x34,
+                    0xBC,
+                    0x06,
+                    0xD6,
+                    0xD6,
+                    0xED,
+                    0xF6,
+                    0x20,
+                    0xD1,
+                    0x84,
+                    0x24,
+                    0x1A,
+                    0x6A,
+                    0xED,
+                    0x8B,
+                    0x63,
+                    0xA6,  # 65-byte signature
+                    0xAC,  # OP_CHECKSIG
+                ]
+            ),
         )
         msgTx.addTxIn(txIn)
         msgTx.addTxOut(txOut)
@@ -72,7 +135,7 @@ class TestMsgTx(unittest.TestCase):
         msgTx.expiry = 0
         # Ensure the hash produced is expected.
         self.assertEqual(msgTx.hash(), wantHash)
-            
+
     def test_tx_serialize_prefix(self):
         """
         TestTxSerializePrefix tests MsgTx serialize and deserialize.
@@ -80,22 +143,33 @@ class TestMsgTx(unittest.TestCase):
         noTx = msgtx.MsgTx.new()
         noTx.version = 1
         noTx.serType = wire.TxSerializeNoWitness
-        noTxEncoded = ByteArray([
-            0x01, 0x00, 0x01, 0x00, # Version
-            0x00,                   # Varint for number of input transactions
-            0x00,                   # Varint for number of output transactions
-            0x00, 0x00, 0x00, 0x00, # Lock time
-            0x00, 0x00, 0x00, 0x00, # Expiry
-        ])
+        noTxEncoded = ByteArray(
+            [
+                0x01,
+                0x00,
+                0x01,
+                0x00,  # Version
+                0x00,  # Varint for number of input transactions
+                0x00,  # Varint for number of output transactions
+                0x00,
+                0x00,
+                0x00,
+                0x00,  # Lock time
+                0x00,
+                0x00,
+                0x00,
+                0x00,  # Expiry
+            ]
+        )
 
         mtPrefix = msgtx.multiTxPrefix()
         tests = [
             # No transactions.
             (
-                noTx,        # in           *MsgTx  Message to encode
-                noTx,        # out          *MsgTx  Expected decoded message
-                noTxEncoded, # buf          []byte  Serialized data
-                [],        # pkScriptLocs []int   Expected output script locations
+                noTx,  # in           *MsgTx  Message to encode
+                noTx,  # out          *MsgTx  Expected decoded message
+                noTxEncoded,  # buf          []byte  Serialized data
+                [],  # pkScriptLocs []int   Expected output script locations
             ),
             # Multiple transactions.
             (
@@ -111,7 +185,7 @@ class TestMsgTx(unittest.TestCase):
             buf = inTx.serialize()
             self.assertEqual(len(buf), inTx.serializeSize())
             self.assertEqual(buf, testBuf)
-            
+
             # Deserialize the transaction.
             tx = msgtx.MsgTx.deserialize(testBuf.copy())
 
@@ -126,30 +200,30 @@ class TestMsgTx(unittest.TestCase):
                 self.assertListEqual(psl, pkScriptLocs)
                 for j, loc in enumerate(psl):
                     wantPkScript = inTx.txOut[j].pkScript
-                    gotPkScript = testBuf[loc : loc+len(wantPkScript)]
+                    gotPkScript = testBuf[loc : loc + len(wantPkScript)]
                     self.assertEqual(gotPkScript, wantPkScript)
+
     def test_tx_serialize_witness(self):
         """ TestTxSerializeWitness tests MsgTx serialize and deserialize."""
         noTx = msgtx.MsgTx.new()
         noTx.serType = wire.TxSerializeOnlyWitness
         noTx.version = 1
-        noTxEncoded = ByteArray([
-            0x01, 0x00, 0x02, 0x00, # Version
-            0x00, # Varint for number of input signatures
-        ])
+        noTxEncoded = ByteArray(
+            [
+                0x01,
+                0x00,
+                0x02,
+                0x00,  # Version
+                0x00,  # Varint for number of input signatures
+            ]
+        )
         # in           *MsgTx // Message to encode
         # out          *MsgTx // Expected decoded message
         # buf          []byte // Serialized data
         # pkScriptLocs []int  // Expected output script locations
         tests = [
             # No transactions.
-            [
-                noTx,
-                noTx,
-                noTxEncoded,
-                [],
-            ],
-
+            [noTx, noTx, noTxEncoded, [],],
             # Multiple transactions.
             [
                 msgtx.multiTxWitness(),
@@ -176,33 +250,39 @@ class TestMsgTx(unittest.TestCase):
                 self.assertListEqual(psl, pkScriptLocs)
                 for j, loc in enumerate(psl):
                     wantPkScript = inTx.TxIn[j].pkScript
-                    gotPkScript = testBuf[loc : loc+len(wantPkScript)]
+                    gotPkScript = testBuf[loc : loc + len(wantPkScript)]
                     self.assertEqual(gotPkScript, wantPkScript)
+
     def test_tx_serialize(self):
         """ TestTxSerialize tests MsgTx serialize and deserialize. """
         noTx = msgtx.MsgTx.new()
         noTx.version = 1
-        noTxEncoded = ByteArray([
-            0x01, 0x00, 0x00, 0x00, # Version
-            0x00,                   # Varint for number of input transactions
-            0x00,                   # Varint for number of output transactions
-            0x00, 0x00, 0x00, 0x00, # Lock time
-            0x00, 0x00, 0x00, 0x00, # Expiry
-            0x00, # Varint for number of input signatures
-        ])
+        noTxEncoded = ByteArray(
+            [
+                0x01,
+                0x00,
+                0x00,
+                0x00,  # Version
+                0x00,  # Varint for number of input transactions
+                0x00,  # Varint for number of output transactions
+                0x00,
+                0x00,
+                0x00,
+                0x00,  # Lock time
+                0x00,
+                0x00,
+                0x00,
+                0x00,  # Expiry
+                0x00,  # Varint for number of input signatures
+            ]
+        )
         # in           *MsgTx // Message to encode
         # out          *MsgTx // Expected decoded message
         # buf          []byte // Serialized data
         # pkScriptLocs []int  // Expected output script locations
         tests = [
             # No transactions.
-            [
-                noTx,
-                noTx,
-                noTxEncoded,
-                [],
-            ],
-
+            [noTx, noTx, noTxEncoded, [],],
             # Multiple transactions.
             [
                 msgtx.multiTx(),
@@ -231,8 +311,9 @@ class TestMsgTx(unittest.TestCase):
                 self.assertListEqual(psl, pkScriptLocs, msg="psl %i" % i)
                 for j, loc in enumerate(psl):
                     wantPkScript = inTx.txOut[j].pkScript
-                    gotPkScript = testBuf[loc : loc+len(wantPkScript)]
+                    gotPkScript = testBuf[loc : loc + len(wantPkScript)]
                     self.assertEqual(gotPkScript, wantPkScript, msg="scripts %i" % i)
+
     def test_tx_overflow_errors(self):
         """
         TestTxOverflowErrors performs tests to ensure deserializing transactions
@@ -245,97 +326,358 @@ class TestMsgTx(unittest.TestCase):
         # bytes encoded with those versions.
         pver = 1
         txVer = 1
-            # buf     []byte // Wire encoding
-            # pver    uint32 // Protocol version for wire encoding
-            # version int32  // Transaction version
-            # err     error  // Expected error
+        # buf     []byte // Wire encoding
+        # pver    uint32 // Protocol version for wire encoding
+        # version int32  // Transaction version
+        # err     error  // Expected error
         tests = [
             # Transaction that claims to have ~uint64(0) inputs. [0]
             (
-                ByteArray([
-                    0x01, 0x00, 0x00, 0x00, # Version
-                    0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff,
-                    0xff, # Varint for number of input transactions
-                ]), pver, txVer,
+                ByteArray(
+                    [
+                        0x01,
+                        0x00,
+                        0x00,
+                        0x00,  # Version
+                        0xFF,
+                        0xFF,
+                        0xFF,
+                        0xFF,
+                        0xFF,
+                        0xFF,
+                        0xFF,
+                        0xFF,
+                        0xFF,  # Varint for number of input transactions
+                    ]
+                ),
+                pver,
+                txVer,
             ),
-
             # Transaction that claims to have ~uint64(0) outputs. [1]
             (
-                ByteArray([
-                    0x01, 0x00, 0x00, 0x00, # Version
-                    0x00, # Varint for number of input transactions
-                    0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff,
-                    0xff, # Varint for number of output transactions
-                ]), pver, txVer,
+                ByteArray(
+                    [
+                        0x01,
+                        0x00,
+                        0x00,
+                        0x00,  # Version
+                        0x00,  # Varint for number of input transactions
+                        0xFF,
+                        0xFF,
+                        0xFF,
+                        0xFF,
+                        0xFF,
+                        0xFF,
+                        0xFF,
+                        0xFF,
+                        0xFF,  # Varint for number of output transactions
+                    ]
+                ),
+                pver,
+                txVer,
             ),
-
             # Transaction that has an input with a signature script that [2]
             # claims to have ~uint64(0) length.
             (
-                ByteArray([
-                    0x01, 0x00, 0x00, 0x00, # Version
-                    0x01, # Varint for number of input transactions
-                    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-                    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-                    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-                    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, # Previous output hash
-                    0xff, 0xff, 0xff, 0xff, # Previous output index
-                    0x00,                   # Previous output tree
-                    0x00,                   # Varint for length of signature script
-                    0xff, 0xff, 0xff, 0xff, # Sequence
-                    0x02,                                           # Varint for number of output transactions
-                    0x00, 0xf2, 0x05, 0x2a, 0x01, 0x00, 0x00, 0x00, # Transaction amount
-                    0x43, # Varint for length of pk script
-                    0x41, # OP_DATA_65
-                    0x04, 0xd6, 0x4b, 0xdf, 0xd0, 0x9e, 0xb1, 0xc5,
-                    0xfe, 0x29, 0x5a, 0xbd, 0xeb, 0x1d, 0xca, 0x42,
-                    0x81, 0xbe, 0x98, 0x8e, 0x2d, 0xa0, 0xb6, 0xc1,
-                    0xc6, 0xa5, 0x9d, 0xc2, 0x26, 0xc2, 0x86, 0x24,
-                    0xe1, 0x81, 0x75, 0xe8, 0x51, 0xc9, 0x6b, 0x97,
-                    0x3d, 0x81, 0xb0, 0x1c, 0xc3, 0x1f, 0x04, 0x78,
-                    0x34, 0xbc, 0x06, 0xd6, 0xd6, 0xed, 0xf6, 0x20,
-                    0xd1, 0x84, 0x24, 0x1a, 0x6a, 0xed, 0x8b, 0x63,
-                    0xa6,                                           # 65-byte signature
-                    0xac,                                           # OP_CHECKSIG
-                    0x00, 0xe1, 0xf5, 0x05, 0x00, 0x00, 0x00, 0x00, # Transaction amount
-                    0x43, # Varint for length of pk script
-                    0x41, # OP_DATA_65
-                    0x04, 0xd6, 0x4b, 0xdf, 0xd0, 0x9e, 0xb1, 0xc5,
-                    0xfe, 0x29, 0x5a, 0xbd, 0xeb, 0x1d, 0xca, 0x42,
-                    0x81, 0xbe, 0x98, 0x8e, 0x2d, 0xa0, 0xb6, 0xc1,
-                    0xc6, 0xa5, 0x9d, 0xc2, 0x26, 0xc2, 0x86, 0x24,
-                    0xe1, 0x81, 0x75, 0xe8, 0x51, 0xc9, 0x6b, 0x97,
-                    0x3d, 0x81, 0xb0, 0x1c, 0xc3, 0x1f, 0x04, 0x78,
-                    0x34, 0xbc, 0x06, 0xd6, 0xd6, 0xed, 0xf6, 0x20,
-                    0xd1, 0x84, 0x24, 0x1a, 0x6a, 0xed, 0x8b, 0x63,
-                    0xa6,                   # 65-byte signature
-                    0xac,                   # OP_CHECKSIG
-                    0x00, 0x00, 0x00, 0x00, # Lock time
-                    0x00, 0x00, 0x00, 0x00, # Expiry
-                    0x01,                                                 # Varint for number of input signature
-                    0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, # Varint for sig script length (overflows)
-                ]), pver, txVer,
+                ByteArray(
+                    [
+                        0x01,
+                        0x00,
+                        0x00,
+                        0x00,  # Version
+                        0x01,  # Varint for number of input transactions
+                        0x00,
+                        0x00,
+                        0x00,
+                        0x00,
+                        0x00,
+                        0x00,
+                        0x00,
+                        0x00,
+                        0x00,
+                        0x00,
+                        0x00,
+                        0x00,
+                        0x00,
+                        0x00,
+                        0x00,
+                        0x00,
+                        0x00,
+                        0x00,
+                        0x00,
+                        0x00,
+                        0x00,
+                        0x00,
+                        0x00,
+                        0x00,
+                        0x00,
+                        0x00,
+                        0x00,
+                        0x00,
+                        0x00,
+                        0x00,
+                        0x00,
+                        0x00,  # Previous output hash
+                        0xFF,
+                        0xFF,
+                        0xFF,
+                        0xFF,  # Previous output index
+                        0x00,  # Previous output tree
+                        0x00,  # Varint for length of signature script
+                        0xFF,
+                        0xFF,
+                        0xFF,
+                        0xFF,  # Sequence
+                        0x02,  # Varint for number of output transactions
+                        0x00,
+                        0xF2,
+                        0x05,
+                        0x2A,
+                        0x01,
+                        0x00,
+                        0x00,
+                        0x00,  # Transaction amount
+                        0x43,  # Varint for length of pk script
+                        0x41,  # OP_DATA_65
+                        0x04,
+                        0xD6,
+                        0x4B,
+                        0xDF,
+                        0xD0,
+                        0x9E,
+                        0xB1,
+                        0xC5,
+                        0xFE,
+                        0x29,
+                        0x5A,
+                        0xBD,
+                        0xEB,
+                        0x1D,
+                        0xCA,
+                        0x42,
+                        0x81,
+                        0xBE,
+                        0x98,
+                        0x8E,
+                        0x2D,
+                        0xA0,
+                        0xB6,
+                        0xC1,
+                        0xC6,
+                        0xA5,
+                        0x9D,
+                        0xC2,
+                        0x26,
+                        0xC2,
+                        0x86,
+                        0x24,
+                        0xE1,
+                        0x81,
+                        0x75,
+                        0xE8,
+                        0x51,
+                        0xC9,
+                        0x6B,
+                        0x97,
+                        0x3D,
+                        0x81,
+                        0xB0,
+                        0x1C,
+                        0xC3,
+                        0x1F,
+                        0x04,
+                        0x78,
+                        0x34,
+                        0xBC,
+                        0x06,
+                        0xD6,
+                        0xD6,
+                        0xED,
+                        0xF6,
+                        0x20,
+                        0xD1,
+                        0x84,
+                        0x24,
+                        0x1A,
+                        0x6A,
+                        0xED,
+                        0x8B,
+                        0x63,
+                        0xA6,  # 65-byte signature
+                        0xAC,  # OP_CHECKSIG
+                        0x00,
+                        0xE1,
+                        0xF5,
+                        0x05,
+                        0x00,
+                        0x00,
+                        0x00,
+                        0x00,  # Transaction amount
+                        0x43,  # Varint for length of pk script
+                        0x41,  # OP_DATA_65
+                        0x04,
+                        0xD6,
+                        0x4B,
+                        0xDF,
+                        0xD0,
+                        0x9E,
+                        0xB1,
+                        0xC5,
+                        0xFE,
+                        0x29,
+                        0x5A,
+                        0xBD,
+                        0xEB,
+                        0x1D,
+                        0xCA,
+                        0x42,
+                        0x81,
+                        0xBE,
+                        0x98,
+                        0x8E,
+                        0x2D,
+                        0xA0,
+                        0xB6,
+                        0xC1,
+                        0xC6,
+                        0xA5,
+                        0x9D,
+                        0xC2,
+                        0x26,
+                        0xC2,
+                        0x86,
+                        0x24,
+                        0xE1,
+                        0x81,
+                        0x75,
+                        0xE8,
+                        0x51,
+                        0xC9,
+                        0x6B,
+                        0x97,
+                        0x3D,
+                        0x81,
+                        0xB0,
+                        0x1C,
+                        0xC3,
+                        0x1F,
+                        0x04,
+                        0x78,
+                        0x34,
+                        0xBC,
+                        0x06,
+                        0xD6,
+                        0xD6,
+                        0xED,
+                        0xF6,
+                        0x20,
+                        0xD1,
+                        0x84,
+                        0x24,
+                        0x1A,
+                        0x6A,
+                        0xED,
+                        0x8B,
+                        0x63,
+                        0xA6,  # 65-byte signature
+                        0xAC,  # OP_CHECKSIG
+                        0x00,
+                        0x00,
+                        0x00,
+                        0x00,  # Lock time
+                        0x00,
+                        0x00,
+                        0x00,
+                        0x00,  # Expiry
+                        0x01,  # Varint for number of input signature
+                        0xFF,
+                        0xFF,
+                        0xFF,
+                        0xFF,
+                        0xFF,
+                        0xFF,
+                        0xFF,
+                        0xFF,
+                        0xFF,  # Varint for sig script length (overflows)
+                    ]
+                ),
+                pver,
+                txVer,
             ),
-
             # Transaction that has an output with a public key script [3]
             # that claims to have ~uint64(0) length.
             (
-                ByteArray([
-                    0x01, 0x00, 0x00, 0x00, # Version
-                    0x01, # Varint for number of input transactions
-                    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-                    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-                    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-                    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, # Previous output hash
-                    0xff, 0xff, 0xff, 0xff, # Prevous output index
-                    0x00,                   # Previous output tree
-                    0x00,                   # Varint for length of signature script
-                    0xff, 0xff, 0xff, 0xff, # Sequence
-                    0x01,                                           # Varint for number of output transactions
-                    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, # Transaction amount
-                    0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff,
-                    0xff, # Varint for length of public key script
-                ]), pver, txVer,
+                ByteArray(
+                    [
+                        0x01,
+                        0x00,
+                        0x00,
+                        0x00,  # Version
+                        0x01,  # Varint for number of input transactions
+                        0x00,
+                        0x00,
+                        0x00,
+                        0x00,
+                        0x00,
+                        0x00,
+                        0x00,
+                        0x00,
+                        0x00,
+                        0x00,
+                        0x00,
+                        0x00,
+                        0x00,
+                        0x00,
+                        0x00,
+                        0x00,
+                        0x00,
+                        0x00,
+                        0x00,
+                        0x00,
+                        0x00,
+                        0x00,
+                        0x00,
+                        0x00,
+                        0x00,
+                        0x00,
+                        0x00,
+                        0x00,
+                        0x00,
+                        0x00,
+                        0x00,
+                        0x00,  # Previous output hash
+                        0xFF,
+                        0xFF,
+                        0xFF,
+                        0xFF,  # Prevous output index
+                        0x00,  # Previous output tree
+                        0x00,  # Varint for length of signature script
+                        0xFF,
+                        0xFF,
+                        0xFF,
+                        0xFF,  # Sequence
+                        0x01,  # Varint for number of output transactions
+                        0x00,
+                        0x00,
+                        0x00,
+                        0x00,
+                        0x00,
+                        0x00,
+                        0x00,
+                        0x00,  # Transaction amount
+                        0xFF,
+                        0xFF,
+                        0xFF,
+                        0xFF,
+                        0xFF,
+                        0xFF,
+                        0xFF,
+                        0xFF,
+                        0xFF,  # Varint for length of public key script
+                    ]
+                ),
+                pver,
+                txVer,
             ),
         ]
 
@@ -343,7 +685,8 @@ class TestMsgTx(unittest.TestCase):
             # Decode from wire format.
             with self.assertRaises(Exception, msg="test %i" % i):
                 msgtx.MsgTx.btcDecode(buf, pver)
-    def  test_tx_serialize_errors(self): # TestTxSerializeErrors(t *testing.T) {
+
+    def test_tx_serialize_errors(self):  # TestTxSerializeErrors(t *testing.T) {
         """
         TestTxSerializeErrors performs negative tests against wire encode and decode
         of MsgTx to confirm error paths work correctly.
@@ -412,6 +755,7 @@ class TestMsgTx(unittest.TestCase):
         #       t.Errorf("Deserialize #%d wrong error got: %v, want: %v",
         #           i, err, test.readErr)
         #       continue
+
     def test_tx(self):
         """
         TestTx tests the MsgTx API.
@@ -432,6 +776,7 @@ class TestMsgTx(unittest.TestCase):
         wantPayload = 1000000
         maxPayload = msg.maxPayloadLength(3)
         self.assertEqual(wantPayload, maxPayload)
+
     def test_tx_from_hex(self):
         pver = 1
         hexTx = "01000000010000000000000000000000000000000000000000000000000000000000000000ffffffff00ffffffff0300f2052a01000000000017a914cbb08d6ca783b533b2c7d24a51fbca92d937bf9987000000000000000000000e6a0c1b000000b1bf47057791232500ac23fc0600000000001976a914b1eef3d1535a3868d11fa297c35f3deba978036088ac000000000000000001009e29260800000000000000ffffffff0800002f646372642f"
@@ -445,5 +790,5 @@ class TestMsgTx(unittest.TestCase):
         print(repr(tx.lockTime))
         print(repr(tx.expiry))
         v = sum(txout.value for txout in tx.txOut)
-        print("total sent: %.2f" % (v*1e-8,))
+        print("total sent: %.2f" % (v * 1e-8,))
         print(tx.txHex())
