@@ -1154,7 +1154,12 @@ class StakingScreen(Screen):
         revokeBtn = app.getButton(TINY, "Revoke")
         revokeBtn.clicked.connect(self.revokeTickets)
         votingWgt, _ = Q.makeSeries(Q.HORIZONTAL, agendaBtn, revokeBtn)
+        self.revokeBtn = revokeBtn
         self.layout.addWidget(votingWgt)
+
+        # Hide revoke button unless we have revokable tickets.
+        revokeBtn.hide()
+        self.app.registerSignal(ui.SYNC_SIGNAL, self.checkRevocable)
 
         # Affordability. A row that reads `You can afford X tickets`
         lbl = Q.makeLabel("You can afford ", 14)
@@ -1222,6 +1227,18 @@ class StakingScreen(Screen):
             return
         self.app.appWindow.stack(self.agendasScreen)
 
+    def checkRevocable(self):
+        """
+        On SYNC_SIGNAL signal hide or show revoke button based on wether or not we have revocable tickets.
+        """
+        acct = self.app.wallet.selectedAccount
+        for utxo in acct.utxos.values():
+            if utxo.isRevocableTicket():
+                self.revokeBtn.show()
+                break
+        else:
+            self.revokeBtn.hide()
+
     def revokeTickets(self):
         def revoke(wallet):
             try:
@@ -1233,7 +1250,11 @@ class StakingScreen(Screen):
         self.app.withUnlockedWallet(revoke, self.revoked)
 
     def revoked(self, success):
-        self.app.appWindow.showSuccess("revoke tickets")
+        if success:
+            self.app.appWindow.showSuccess("revoke tickets completed without error")
+            self.revokeBtn.hide()
+        else:
+            self.app.appWindow.showError("revoke tickets finished with error")
 
     def setStats(self):
         """

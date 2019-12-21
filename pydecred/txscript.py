@@ -12,7 +12,10 @@ from tinydecred.pydecred.wire import (
     msgtx,
 )  # A couple of usefule serialization functions.
 from tinydecred.crypto import opcode, crypto
+from tinydecred.util import helpers
 from tinydecred.crypto.secp256k1.curve import curve as Curve
+
+log = helpers.getLogger("TXSCRIPT")
 
 HASH_SIZE = 32
 SHA256_SIZE = 32
@@ -272,6 +275,85 @@ class Signature:
         offset += 1
         b[offset] = sb
         return b
+
+    @staticmethod
+    def parseSig(sigBytes):
+        """
+	# Originally this code used encoding/asn1 in order to parse the
+	# signature, but a number of problems were found with this approach.
+	# Despite the fact that signatures are stored as DER, the difference
+	# between go's idea of a bignum (and that they have sign) doesn't agree
+	# with the openssl one (where they do not). The above is true as of
+	# Go 1.1. In the end it was simpler to rewrite the code to explicitly
+	# understand the format which is this:
+	# 0x30 <length of whole message> <0x02> <length of R> <R> 0x2
+	# <length of S> <S>.
+sigStr []byte, der bool) (*Signature, error) {
+        """
+
+	# minimal message is when both numbers are 1 bytes. adding up to:
+	# 0x30 + len + 0x02 + 0x01 + <byte> + 0x2 + 0x01 + <byte>
+        if len(sigBytes) < 8:
+            log.error("malformed signature: too short")
+            return None
+
+        # 0x30
+        index = 0
+        if sigBytes[index] != 0x30:
+            log.error("malformed signature: no header magic")
+            return None
+        index += 1
+        # length of remaining message
+        siglen = sigBytes[index]
+        index += 1
+        if siglen+2 > len(sigBytes):
+            log.error("malformed signature: bad length")
+            return None
+        # trim the slice we're working on so we only look at what matters.
+        sigBytes = sigBytes[:siglen+2]
+
+        # 0x02
+        if sigBytes[index] != 0x02:
+            log.error("malformed signature: no 1st int marker")
+            return None
+        index += 1
+
+        # Length of signature R.
+        rLen = sigBytes[index]
+        # must be positive, must be able to fit in another 0x2, <len> <s>
+        # hence the -3. We assume that the length must be at least one byte.
+        index += 1
+        if rLen <= 0 or rLen > len(sigBytes)-index-3:
+            log.error("malformed signature: bogus R length")
+            return None
+
+        # Then R itself.
+        rBytes = sigBytes[index : index+rLen]
+        index += rLen
+        # 0x02. length already checked in previous if.
+        if sigBytes[index] != 0x02:
+            log.error("malformed signature: no 2nd int marker")
+            return None
+        index += 1
+
+        # Length of signature S.
+        sLen = sigBytes[index]
+        index += 1
+        # S should be the rest of the bytes.
+        if sLen <= 0 or sLen > len(sigBytes)-index:
+            log.error("malformed signature: bogus S length")
+            return None
+
+        # Then S itself.
+        sBytes = sigBytes[index : index+sLen]
+        index += sLen
+
+        # sanity check length parsing
+        if index != len(sigBytes):
+            log.error("malformed signature: bad final length %s != %s" % index, len(sigBytes))
+            return None
+
+        return Signature(rBytes, sBytes)
 
 
 class ScriptTokenizer:
@@ -2119,8 +2201,10 @@ def sign(chainParams, tx, idx, subScript, hashType, keysource, sigType):
         # return script, scriptClass, addresses, nrequired
 
     elif scriptClass == MultiSigTy:
-        privKey = keysource.priv()
-        script = signMultiSig(tx, idx, subScript, hashType, addresses, nrequired, privKey)
+        privKeys = []
+        for addr in addresses:
+            privKeys.append(keysource.priv(addr))
+        script = signMultiSig(tx, idx, subScript, hashType, addresses, nrequired, privKeys)
         return script, scriptClass, addresses, nrequired
 
     elif scriptClass == StakeSubmissionTy:
@@ -2857,43 +2941,29 @@ def makeTicket(
     return mtx
 
 
-class MinimalOutput:
-    """
-    MinimalOutput is a class encoding a minimally sized output for use in parsing
-    stake related information.
-    """
-    def __init__(self, pkScript, value, version):
-        self.pkScript = pkScript
-        self.value = value
-        self.version = version
-
-
-def convertToMinimalOutputs(tx):
-    """
- ConvertToMinimalOutputs converts a transaction to its minimal outputs
- derivative.
-[]*MinimalOutput {
-    """
-    minOuts = []
-    for i in range(len(tx.txOut)):
-        minOuts.append(MinimalOutput(tx.txOut[i].pkScript, tx.txOut[i].value, tx.txOut[i].version))
-    return minOuts
-
-
 def sstxStakeOutputInfo(outs):
     """
     sstxStakeOutputInfo takes an SStx as input and scans through its outputs,
     returning the pubkeyhashs and amounts for any NullDataTy's (future
     commitments to stake generation rewards).
-([]bool, [][]byte, []int64,
-[]int64, [][]bool, [][]uint16):
+
+    Args:
+        outs (list(object)): an SStx MsgTx outputs
+
+    Returns:
+        list(bool): is pay to script.
+        list(byte-like): the output addresses.
+        list(int): the subsidy amounts.
+        list(int): the change amounts.
+        list(list(bool)): the spend rules.
+        list(list(int)): the spend limits.
     """
-    isP2SH = [] # bool, expectedInLen)
-    addresses = [] #[] byte, expectedInLen)
-    amounts = [] # int64, expectedInLen)
-    changeAmounts = [] # int64, expectedInLen)
-    allSpendRules = [] #[] bool, expectedInLen)
-    allSpendLimits = [] #[]  uint16, expectedInLen)
+    isP2SH = []
+    addresses = []
+    amounts = []
+    changeAmounts = []
+    allSpendRules = []
+    allSpendLimits = []
 
     # Cycle through the inputs and pull the proportional amounts
     # and commit to PKHs/SHs.
@@ -2904,7 +2974,6 @@ def sstxStakeOutputInfo(outs):
         if (idx > 0) and (idx % 2 != 0):
             # The MSB (sign), not used ever normally, encodes whether
             # or not it is a P2PKH or P2SH for the input.
-            # amtEncoded = [] # byte, 8)
             amtEncoded = outs[idx].pkScript[22:30]
             # MSB set?
             isP2SH.append(not (amtEncoded[7] & (1 << 7) == 0))
@@ -2916,12 +2985,11 @@ def sstxStakeOutputInfo(outs):
             amounts.append(ByteArray(amtEncoded, length=8).littleEndian().int())
 
             # Get flags and restrictions for the outputs to be
-            # make in either a vote or revocation.
-            spendRules = [] # bool, 2)
-            spendLimits = [] # uint16, 2)
+            # made in either a vote or revocation.
+            spendRules = []
+            spendLimits = []
 
             # This bitflag is true/false.
-            # feeLimitUint16 := binary.LittleEndian.Uint16(out.PkScript[30:32])
             feeLimitUint16 = ByteArray(outs[idx].pkScript[30:32], length=4).littleEndian().int()
             spendRules.append((feeLimitUint16 & SStxVoteFractionFlag) == SStxVoteFractionFlag)
             spendRules.append((feeLimitUint16 & SStxRevFractionFlag) == SStxRevFractionFlag)
@@ -2939,21 +3007,8 @@ def sstxStakeOutputInfo(outs):
         if (idx > 0) and (idx % 2 == 0):
             changeAmounts.append(outs[idx].value)
 
-    print("stake outputs", isP2SH, addresses, amounts, changeAmounts, allSpendRules, allSpendLimits)
     return isP2SH, addresses, amounts, changeAmounts, allSpendRules, allSpendLimits
 
-
-def TxSStxStakeOutputInfo(tx):
-    """
-    TxSStxStakeOutputInfo takes an SStx as input and scans through its outputs,
-    returning the pubkeyhashs and amounts for any NullDataTy's (future
-    commitments to stake generation rewards).
- *wire.MsgTx
- ([]bool, [][]byte, []int64, []int64,
-    [][]bool, [][]uint16) {
-
-    """
-    return sstxStakeOutputInfo(convertToMinimalOutputs(tx))
 
 def calculateRewards(amounts, amountTicket, subsidy):
     """
@@ -2961,8 +3016,14 @@ def calculateRewards(amounts, amountTicket, subsidy):
     to purchase that ticket, and the reward for an SSGen tx and subsequently
     generates what the outputs should be in the SSGen tx.  If used for calculating
     the outputs for an SSRtx, pass 0 for subsidy.
-amounts []int64, amountTicket int64,
-    subsidy int64) []int64
+
+    Args:
+        amounts list (int): output amounts.
+        amountTicket (int): amount used to purchase ticket.
+        subsidy (int): amount to pay.
+
+    Returns:
+        list(int): list of SStx adjusted output amounts.
     """
     outputsAmounts = []
 
@@ -3008,7 +3069,12 @@ def PayToSSRtxPKHDirect(pkh):
     public key hash, but tags the output with OP_SSRTX. For use in constructing
     valid SSRtx. Unlike PayToSSRtx, this function directly uses the HASH160
     pubkeyhash (instead of an address).
-pkh []byte) ([]byte, error
+
+    Args:
+        sh (byte-like): raw script.
+
+    Returns:
+        byte-like: script to pay a stake based public key hash.
     """
     script = ByteArray(b'')
     script += opcode.OP_SSRTX
@@ -3026,7 +3092,12 @@ def PayToSSRtxSHDirect(sh):
     script hash, but tags the output with OP_SSRTX. For use in constructing
     valid SSRtx. Unlike PayToSSRtx, this function directly uses the HASH160
     script hash (instead of an address).
- []byte) ([]byte, error)
+
+    Args:
+        sh (byte-like): raw script.
+
+    Returns:
+        byte-like: script to pay a stake based script hash.
     """
     script = ByteArray(b'')
     script += opcode.OP_SSRTX
@@ -3035,31 +3106,40 @@ def PayToSSRtxSHDirect(sh):
     script += opcode.OP_EQUAL
     return script
 
-def signMultiSig(tx, idx, subScript, hashType, addresses, nRequired, privKey):
+def signMultiSig(tx, idx, subScript, hashType, addresses, nRequired, privKeys):
     """
     signMultiSig signs as many of the outputs in the provided multisig script as
     possible. It returns the generated script and a boolean if the script
     fulfills the contract (i.e. nrequired signatures are provided).  Since it is
     arguably legal to not be able to sign any of the outputs, no error is
     returned.
-(tx *wire.MsgTx, idx int, subScript []byte, hashType SigHashType,
-	addresses []dcrutil.Address, nRequired int, kdb KeyDB) ([]byte, bool) {
 
+    Args:
+        tx (object): the ticket purchase MsgTx.
+        idx (int): the output index that contains the multisig.
+        subScript (byte-like): the multisig script.
+        hashType (int): the type of hash needed
+        addresses (list(object)): the addresses that make up the multisig.
+        nRequired (int): the number of signatures required to fulfill the pkScript.
+        privKeys (list(byte-like)): the private keys for addresses.
+
+    Returns:
+        byte-like: the signed multisig script.
     """
 
     # No need to add dummy in Decred.
     signed = 0
     script = ByteArray(b'')
-    for addr in addresses:
+    for idx in range(len(addresses)):
 
-        sig = rawTxInSignature(tx, idx, subScript, hashType, privKey.key)
+        sig = rawTxInSignature(tx, idx, subScript, hashType, privKeys[idx].key)
 
         script += addData(sig)
         signed += 1
         if signed == nRequired:
             break
 
-    return script #, signed == nRequired
+    return script
 
 def mergeMultiSig(tx, idx, addresses, nRequired, pkScript, sigScript, prevScript):
     """
@@ -3073,22 +3153,27 @@ def mergeMultiSig(tx, idx, addresses, nRequired, pkScript, sigScript, prevScript
     NOTE: This function is only valid for version 0 scripts.  Since the function
     does not accept a script version, the results are undefined for other script
     versions.
-        tx *wire.MsgTx, idx int, addresses []dcrutil.Address,
-    nRequired int, pkScript, sigScript, prevScript []byte) []byte
+
+    Args:
+        tx (object): the ticket purchase MsgTx.
+        idx (int): the output index that contains the multisig.
+        addresses (object): the addresses that make up the multisig.
+        nRequired (int): the number of signatures required to fulfill the pkScript.
+        pkScript (byte-like): the multisig script.
+        sigScript (byte-like): the mulitsig script's signature.
+        prevScript (byte-like): the output's previous signature script.
+
+    Returns:
+        byte-like: the merged signature scripts.
     """
 
     # Nothing to merge if either the new or previous signature scripts are
     # empty.
     if len(sigScript) == 0:
         return prevScript
-        print("sig zero")
 
     if len(prevScript) == 0:
         return sigScript
-        print("prev zero")
- 
-    #Still working on the rest of this...
-    return sigScript
 
     # Convenience function to avoid duplication.
     possibleSigs = []
@@ -3107,10 +3192,10 @@ def mergeMultiSig(tx, idx, addresses, nRequired, pkScript, sigScript, prevScript
     # script that is intended to be merged in the case signature extraction
     # fails for some reason.
     if not extractSigs(sigScript):
-    	return prevScript
+        return prevScript
 
     if not extractSigs(prevScript):
-    	return sigScript
+        return sigScript
 
     # Now we need to match the signatures to pubkeys, the only real way to
     # do that is to try to verify them all and match it to the pubkey
@@ -3118,82 +3203,54 @@ def mergeMultiSig(tx, idx, addresses, nRequired, pkScript, sigScript, prevScript
     # to build our script. Anything that doesn't parse or doesn't verify we
     # throw away.
     addrToSig = {}
-    """
-sigLoop:
-    for _, sig := range possibleSigs {
+    for sig in possibleSigs:
 
-    	# can't have a valid signature that doesn't at least have a
-    	# hashtype, in practise it is even longer than this. but
-    	# that'll be checked next.
-    	if len(sig) < 1 {
-    		continue
-    	}
-    	tSig := sig[:len(sig)-1]
-    	hashType := SigHashType(sig[len(sig)-1])
+        # can't have a valid signature that doesn't at least have a
+        # hashtype, in practise it is even longer than this. but
+        # that'll be checked next.
+        if len(sig) < 1:
+            continue
+        tSig = sig[:-1]
+        hashType = sig[-1]
 
-    	pSig, err := secp256k1.ParseDERSignature(tSig)
-    	if err != nil {
-    		continue
-    	}
+        pSig = Signature.parseSig(tSig)
+        if not pSig:
+            continue
 
-    	# We have to do this each round since hash types may vary
-    	# between signatures and so the hash will vary. We can,
-    	# however, assume no sigs etc are in the script since that
-    	# would make the transaction nonstandard and thus not
-    	# MultiSigTy, so we just need to hash the full thing.
-    	hash, err := calcSignatureHash(pkScript, hashType, tx, idx, nil)
-    	if err != nil {
-    		# Decred -- is this the right handling for SIGHASH_SINGLE error ?
-    		# TODO make sure this doesn't break anything.
-    		continue
-    	}
+        # We have to do this each round since hash types may vary
+        # between signatures and so the hash will vary. We can,
+        # however, assume no sigs etc are in the script since that
+        # would make the transaction nonstandard and thus not
+        # MultiSigTy, so we just need to hash the full thing.
+        hash = calcSignatureHash(pkScript, hashType, tx, idx, None)
 
-    	for _, addr := range addresses {
-    		# All multisig addresses should be pubkey addresses
-    		# it is an error to call this internal function with
-    		# bad input.
-    		pkaddr := addr.(*dcrutil.AddressSecpPubKey)
+        for addr in addresses:
+            # All multisig addresses should be pubkey addresses
+            # it is an error to call this internal function with
+            # bad input.
 
-    		pubKey := pkaddr.PubKey()
+            # If it matches we put it in the map. We only
+            # can take one signature per public key so if we
+            # already have one, we can throw this away.
+            if verifySig(addr.pubkey, hash, pSig.r.int(), pSig.s.int()):
+                addrToSig[addr.string()] = sig
 
-    		# If it matches we put it in the map. We only
-    		# can take one signature per public key so if we
-    		# already have one, we can throw this away.
-    		r := pSig.GetR()
-    		s := pSig.GetS()
-    		if secp256k1.NewSignature(r, s).Verify(hash, pubKey) {
-    			aStr := addr.Address()
-    			if _, ok := addrToSig[aStr]; !ok {
-    				addrToSig[aStr] = sig
-    			}
-    			continue sigLoop
-    		}
-    	}
-    }
-
-    builder := NewScriptBuilder()
-    doneSigs := 0
+    script = ByteArray(b"")
+    doneSigs = 0
     # This assumes that addresses are in the same order as in the script.
-    for _, addr := range addresses {
-    	sig, ok := addrToSig[addr.Address()]
-    	if !ok {
-    		continue
-    	}
-    	builder.AddData(sig)
-    	doneSigs++
-    	if doneSigs == nRequired {
-    		break
-    	}
-    }
-    
-    # padding for missing ones.
-    for i := doneSigs; i < nRequired; i++ {
-    	builder.AddOp(OP_0)
-    }
-    
-    script, _ := builder.Script()
+    for addr in addresses:
+        if addr.string() in addrToSig:
+            script += addData(addrToSig[addr.string()])
+            doneSigs += 1
+        if doneSigs == nRequired:
+            break
+
+    # padding for missing ones
+    for i in range(nRequired - doneSigs):
+        script += opcode.OP_0
+
     return script
-"""
+
 
 def makeRevocation(ticketPurchase, feePerKB):
     '''
@@ -3201,12 +3258,17 @@ def makeRevocation(ticketPurchase, feePerKB):
     revokes a missed or expired ticket.  Revocations must carry a relay fee and
     this function can error if the revocation contains no suitable output to
     decrease the estimated relay fee from.
-ticketHash *chainhash.Hash, ticketPurchase *wire.MsgTx, feePerKB dcrutil.Amount
-(*wire.MsgTx, error)
+
+    Args:
+        ticketPurchase (object): the ticket to revoke's MsgTx.
+        feePerKB (int): the miner's fee per kb.
+
+    Returns:
+        object: the unsigned revocation MsgTx or None in case of error.
     '''
     # Parse the ticket purchase transaction to determine the required output
     # destinations for vote rewards or revocations.
-    ticketPayKinds, ticketHash160s, ticketValues, _, _, _ = TxSStxStakeOutputInfo(ticketPurchase)
+    ticketPayKinds, ticketHash160s, ticketValues, _, _, _ = sstxStakeOutputInfo(ticketPurchase.txOut)
 
     # Calculate the output values for the revocation.  Revocations do not
     # contain any subsidy.
@@ -3217,7 +3279,6 @@ ticketHash *chainhash.Hash, ticketPurchase *wire.MsgTx, feePerKB dcrutil.Amount
 
     # Revocations reference the ticket purchase with the first (and only)
     # input.
-    print("ticket hash", ticketPurchase.hash())
     ticketOutPoint = msgtx.OutPoint(ticketPurchase.hash(), 0, msgtx.TxTreeStake)
     ticketInput = msgtx.TxIn(
         previousOutPoint=ticketOutPoint,
@@ -3254,5 +3315,5 @@ ticketHash *chainhash.Hash, ticketPurchase *wire.MsgTx, feePerKB dcrutil.Amount
             if not isDustAmount(amount, len(output.pkScript), feePerKB):
                 output.value = amount
                 return revocation
-    print("missing suitable revocation output to pay relay fee")
-    return False
+    log.error("missing suitable revocation output to pay relay fee")
+    return None
