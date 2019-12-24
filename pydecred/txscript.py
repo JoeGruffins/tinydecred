@@ -200,14 +200,14 @@ defaultTicketFeeLimits = 0x5800
 # If after applying this mask &0x003f is given, the entire amount of
 # the output is allowed to be spent as fees if the flag to allow fees
 # is set.
-SStxVoteReturnFractionMask = 0x003f
+SStxVoteReturnFractionMask = 0x003F
 
 # SStxRevReturnFractionMask extracts the return fraction from a
 # commitment output version.
 # If after applying this mask &0x3f00 is given, the entire amount of
 # the output is allowed to be spent as fees if the flag to allow fees
 # is set.
-SStxRevReturnFractionMask = 0x3f00
+SStxRevReturnFractionMask = 0x3F00
 
 
 # SStxVoteFractionFlag is a bitflag mask specifying whether or not to
@@ -291,8 +291,8 @@ class Signature:
 sigStr []byte, der bool) (*Signature, error) {
         """
 
-	# minimal message is when both numbers are 1 bytes. adding up to:
-	# 0x30 + len + 0x02 + 0x01 + <byte> + 0x2 + 0x01 + <byte>
+        # minimal message is when both numbers are 1 bytes. adding up to:
+        # 0x30 + len + 0x02 + 0x01 + <byte> + 0x2 + 0x01 + <byte>
         if len(sigBytes) < 8:
             log.error("malformed signature: too short")
             return None
@@ -306,11 +306,11 @@ sigStr []byte, der bool) (*Signature, error) {
         # length of remaining message
         siglen = sigBytes[index]
         index += 1
-        if siglen+2 > len(sigBytes):
+        if siglen + 2 > len(sigBytes):
             log.error("malformed signature: bad length")
             return None
         # trim the slice we're working on so we only look at what matters.
-        sigBytes = sigBytes[:siglen+2]
+        sigBytes = sigBytes[: siglen + 2]
 
         # 0x02
         if sigBytes[index] != 0x02:
@@ -323,12 +323,12 @@ sigStr []byte, der bool) (*Signature, error) {
         # must be positive, must be able to fit in another 0x2, <len> <s>
         # hence the -3. We assume that the length must be at least one byte.
         index += 1
-        if rLen <= 0 or rLen > len(sigBytes)-index-3:
+        if rLen <= 0 or rLen > len(sigBytes) - index - 3:
             log.error("malformed signature: bogus R length")
             return None
 
         # Then R itself.
-        rBytes = sigBytes[index : index+rLen]
+        rBytes = sigBytes[index : index + rLen]
         index += rLen
         # 0x02. length already checked in previous if.
         if sigBytes[index] != 0x02:
@@ -340,17 +340,19 @@ sigStr []byte, der bool) (*Signature, error) {
         sLen = sigBytes[index]
         index += 1
         # S should be the rest of the bytes.
-        if sLen <= 0 or sLen > len(sigBytes)-index:
+        if sLen <= 0 or sLen > len(sigBytes) - index:
             log.error("malformed signature: bogus S length")
             return None
 
         # Then S itself.
-        sBytes = sigBytes[index : index+sLen]
+        sBytes = sigBytes[index : index + sLen]
         index += sLen
 
         # sanity check length parsing
         if index != len(sigBytes):
-            log.error("malformed signature: bad final length %s != %s" % index, len(sigBytes))
+            log.error(
+                "malformed signature: bad final length %s != %s" % index, len(sigBytes)
+            )
             return None
 
         return Signature(rBytes, sBytes)
@@ -2204,7 +2206,9 @@ def sign(chainParams, tx, idx, subScript, hashType, keysource, sigType):
         privKeys = []
         for addr in addresses:
             privKeys.append(keysource.priv(addr))
-        script = signMultiSig(tx, idx, subScript, hashType, addresses, nrequired, privKeys)
+        script = signMultiSig(
+            tx, idx, subScript, hashType, addresses, nrequired, privKeys
+        )
         return script, scriptClass, addresses, nrequired
 
     elif scriptClass == StakeSubmissionTy:
@@ -2359,9 +2363,10 @@ def mergeScripts(
         finalScript += addData(script)
         return finalScript
     elif scriptClass == MultiSigTy:
-        #raise Exception("multisig signing unimplemented")
-         return mergeMultiSig(tx, idx, addresses, nRequired, pkScript,
-           sigScript, prevScript)
+        # raise Exception("multisig signing unimplemented")
+        return mergeMultiSig(
+            tx, idx, addresses, nRequired, pkScript, sigScript, prevScript
+        )
     else:
         # It doesn't actually make sense to merge anything other than multiig
         # and scripthash (because it could contain multisig). Everything else
@@ -2990,9 +2995,15 @@ def sstxStakeOutputInfo(outs):
             spendLimits = []
 
             # This bitflag is true/false.
-            feeLimitUint16 = ByteArray(outs[idx].pkScript[30:32], length=4).littleEndian().int()
-            spendRules.append((feeLimitUint16 & SStxVoteFractionFlag) == SStxVoteFractionFlag)
-            spendRules.append((feeLimitUint16 & SStxRevFractionFlag) == SStxRevFractionFlag)
+            feeLimitUint16 = (
+                ByteArray(outs[idx].pkScript[30:32], length=4).littleEndian().int()
+            )
+            spendRules.append(
+                (feeLimitUint16 & SStxVoteFractionFlag) == SStxVoteFractionFlag
+            )
+            spendRules.append(
+                (feeLimitUint16 & SStxRevFractionFlag) == SStxRevFractionFlag
+            )
             allSpendRules.append(spendRules)
 
             # This is the fraction to use out of 64.
@@ -3076,7 +3087,7 @@ def PayToSSRtxPKHDirect(pkh):
     Returns:
         byte-like: script to pay a stake based public key hash.
     """
-    script = ByteArray(b'')
+    script = ByteArray(b"")
     script += opcode.OP_SSRTX
     script += opcode.OP_DUP
     script += opcode.OP_HASH160
@@ -3099,12 +3110,13 @@ def PayToSSRtxSHDirect(sh):
     Returns:
         byte-like: script to pay a stake based script hash.
     """
-    script = ByteArray(b'')
+    script = ByteArray(b"")
     script += opcode.OP_SSRTX
     script += opcode.OP_HASH160
     script += addData(sh)
     script += opcode.OP_EQUAL
     return script
+
 
 def signMultiSig(tx, idx, subScript, hashType, addresses, nRequired, privKeys):
     """
@@ -3129,7 +3141,7 @@ def signMultiSig(tx, idx, subScript, hashType, addresses, nRequired, privKeys):
 
     # No need to add dummy in Decred.
     signed = 0
-    script = ByteArray(b'')
+    script = ByteArray(b"")
     for idx in range(len(addresses)):
 
         sig = rawTxInSignature(tx, idx, subScript, hashType, privKeys[idx].key)
@@ -3140,6 +3152,7 @@ def signMultiSig(tx, idx, subScript, hashType, addresses, nRequired, privKeys):
             break
 
     return script
+
 
 def mergeMultiSig(tx, idx, addresses, nRequired, pkScript, sigScript, prevScript):
     """
@@ -3253,7 +3266,7 @@ def mergeMultiSig(tx, idx, addresses, nRequired, pkScript, sigScript, prevScript
 
 
 def makeRevocation(ticketPurchase, feePerKB):
-    '''
+    """
     makeRevocation creates an unsigned revocation transaction that
     revokes a missed or expired ticket.  Revocations must carry a relay fee and
     this function can error if the revocation contains no suitable output to
@@ -3265,10 +3278,12 @@ def makeRevocation(ticketPurchase, feePerKB):
 
     Returns:
         object: the unsigned revocation MsgTx or None in case of error.
-    '''
+    """
     # Parse the ticket purchase transaction to determine the required output
     # destinations for vote rewards or revocations.
-    ticketPayKinds, ticketHash160s, ticketValues, _, _, _ = sstxStakeOutputInfo(ticketPurchase.txOut)
+    ticketPayKinds, ticketHash160s, ticketValues, _, _, _ = sstxStakeOutputInfo(
+        ticketPurchase.txOut
+    )
 
     # Calculate the output values for the revocation.  Revocations do not
     # contain any subsidy.
