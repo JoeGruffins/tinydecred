@@ -6,7 +6,6 @@ The DecredAccount inherits from the tinydecred base Account and adds staking
 support.
 """
 
-import copy
 from tinydecred.crypto.bytearray import decodeBA
 from tinydecred.crypto import opcode, crypto
 from tinydecred.wallet.accounts import Account
@@ -432,16 +431,24 @@ class DecredAccount(Account):
         Returns:
             bool: whether or not an error occured.
         """
-        revokableTickets = [utxo.txid for utxo in self.utxos.values() if utxo.isRevocableTicket()]
+        revokableTickets = [
+            utxo.txid for utxo in self.utxos.values() if utxo.isRevocableTicket()
+        ]
         errored = False
+        txs = []
         for txid in revokableTickets:
             try:
                 tx = self.blockchain.tx(txid)
+                txs.append(tx)
             except Exception as e:
                 log.error("error getting tx: %s" % e)
                 errored = True
                 continue
-            redeemHash = crypto.AddressScriptHash(self.net.ScriptHashAddrID, txscript.extractStakeScriptHash(tx.txOut[0].pkScript, opcode.OP_SSTX))
+        for tx in txs:
+            redeemHash = crypto.AddressScriptHash(
+                self.net.ScriptHashAddrID,
+                txscript.extractStakeScriptHash(tx.txOut[0].pkScript, opcode.OP_SSTX),
+            )
             redeemScript = []
             for pool in self.stakePools:
                 if pool.purchaseInfo.ticketAddress == redeemHash.string():
@@ -451,7 +458,6 @@ class DecredAccount(Account):
                 log.error("did not find redeem script for hash %s" % redeemHash)
                 errored = True
                 continue
-
             keysource = KeySource(
                 # This will need to change when we start using different
                 # addresses for voting.

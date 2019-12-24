@@ -1654,7 +1654,17 @@ class DcrdataBlockchain(object):
         if not revocation:
             log.info("failed to make revocation")
             return
-        signedScript = txscript.signTxOutput(self.params, revocation, 0, redeemScript, txscript.SigHashAll, keysource, revocation.txIn[0].signatureScript, crypto.STEcdsaSecp256k1)
+
+        signedScript = txscript.signTxOutput(
+            self.params,
+            revocation,
+            0,
+            redeemScript,
+            txscript.SigHashAll,
+            keysource,
+            revocation.txIn[0].signatureScript,
+            crypto.STEcdsaSecp256k1,
+        )
 
         # Append the redeem script to the signature
         signedScript += txscript.addData(redeemScript)

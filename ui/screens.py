@@ -1232,21 +1232,30 @@ class StakingScreen(Screen):
         On SYNC_SIGNAL signal hide or show revoke button based on wether or not we have revocable tickets.
         """
         acct = self.app.wallet.selectedAccount
+        n = 0
+        plural = ""
         for utxo in acct.utxos.values():
             if utxo.isRevocableTicket():
-                self.revokeBtn.show()
-                break
+                n += 1
+        if n > 0:
+            if n > 1:
+                plural = "s"
+            self.revokeBtn.setText("revoke {} ticket{}".format(n, plural))
+            self.revokeBtn.show()
         else:
             self.revokeBtn.hide()
 
     def revokeTickets(self):
         def revoke(wallet):
             try:
+                self.app.emitSignal(ui.WORKING_SIGNAL)
                 wallet.openAccount.revokeTickets()
                 return True
             except Exception as e:
                 log.error("revoke tickets error: %s" % formatTraceback(e))
                 return False
+            self.app.emitSignal(ui.DONE_SIGNAL)
+
         self.app.withUnlockedWallet(revoke, self.revoked)
 
     def revoked(self, success):
